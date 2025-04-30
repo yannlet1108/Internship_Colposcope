@@ -12,7 +12,7 @@
 from private_constants import dataset_location
 
 # Path
-PATH = dataset_location + "/Colpo1/Colpo Dataset"
+PATH = dataset_location + "/Colpo Dataset"
 PATH2D = PATH + "/2D"
 PATH3D = PATH + "/3D"
 
