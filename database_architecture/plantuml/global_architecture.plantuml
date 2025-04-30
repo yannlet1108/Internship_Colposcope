@@ -1,0 +1,12 @@
+@startuml global_architecture
+
+
+database Colpo1 {
+    folder ColpoDataset as "Colpo Dataset" {
+        folder 3D
+        folder 2D
+    }
+    
+} 
+
+@enduml

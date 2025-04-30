@@ -1,0 +1,9 @@
+@startuml 2D_patient_data
+
+folder PXXX{
+    file acetic_acid.jpg
+    file lugol.jpg
+    file saline.jpg
+}
+
+@enduml
