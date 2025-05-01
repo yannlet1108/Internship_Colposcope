@@ -1,4 +1,4 @@
-# Database Architecture
+# Dataset Architecture
 
 The dataset this project is based on is on the external SSD named `Colpo1`. It contains the folder `Colpo Dataset` that we will consider the root of the dataset.
 

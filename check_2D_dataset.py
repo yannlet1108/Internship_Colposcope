@@ -19,7 +19,7 @@ def count_number_of_patients(path):
     """Count the number of patients in the 2D dataset.
     
     Note:
-        The dataset should follow the structure precised in the database_architecture folder.
+        The dataset should follow the structure precised in the dataset_architecture folder.
 
     Args:
         path (string) : root path of the 2D dataset
@@ -39,7 +39,7 @@ def count_images_by_contrast_mediator(path):
     and verify that there is no other file.
     
     Note:
-        The dataset should follow the structure precised in the database_architecture folder.
+        The dataset should follow the structure precised in the dataset_architecture folder.
 
     Args:
         path (string) : root path of the 2D dataset
