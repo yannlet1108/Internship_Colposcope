@@ -9,6 +9,9 @@
 #      from constants import ...
 #************************************
 
+import sys
+sys.path.append("..")  # Add the parent directory to the path
+
 from private_constants import dataset_location
 
 # Path

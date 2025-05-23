@@ -20,5 +20,10 @@ dataset_location = "[the path of the folder containing the folder 'Colpo Dataset
 
 ## Architecture
 
-- The [dataset_architecture](dataset_architecture) folder contains the architecture of the dataset. 
+- The [dataset_architecture](dataset_architecture) folder contains an explanation of the architecture of the dataset. 
 
+## Libraries
+
+```bash
+pip3 install opencv-python
+```
