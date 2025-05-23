@@ -1,0 +1,37 @@
+@startuml 2D_data_partition
+
+folder 2D {
+
+    folder Dev {
+        folder NormalDev as "Normal" {
+            collections NormalDevPatients as "5"
+        }
+        folder LSILDev as "LSIL" {
+            collections LSILDevPatients as "3"
+        }
+        folder HSILDev as "HSIL" {
+            collections HSILDevPatients as "3"
+        }
+        folder CancerDev as "Cancer" {
+            collections CancerDevPatients as "2"
+        }
+    }
+
+    folder Train {
+        
+        folder NormalTrain as "Normal" {
+            collections NormalTrainPatients as "20"
+        }
+        folder LSILTrain as "LSIL" {
+            collections LSILTrainPatients as "11"
+        }
+        folder HSILTrain as "HSIL" {
+            collections HSILTrainPatients as "14"
+        }
+        folder CancerTrain as "Cancer" {
+            collections CancerTrainPatients as "9"
+        }
+    }
+}
+
+@enduml

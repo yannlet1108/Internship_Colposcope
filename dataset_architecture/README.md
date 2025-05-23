@@ -21,7 +21,7 @@ Each patient has a folder named `PXXX` where XXX is the patient number. Inside e
 
 In order to train a model, the dataset is split into 2 folders : `Train` and `Dev`. The `Train` folder contains contains around 80% of the patients of each class and the `Dev` folder contains the remaining 20%. The dataset is hence split this way :
 
-![2D data partition](png/2D_data_partition.png)
+![2D AI partition](png/2D_AI_partition.png)
 
 Each patient folder (PXXX) remains unchanged, they were just moved.
 
