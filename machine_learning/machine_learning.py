@@ -3,9 +3,9 @@
 
 #************************************
 # Author : Yann Letourneur
-# Date : May 15th 2025
-# Description :  **/!\**  TO DO  **/!\**
-# Usage : python3 check_2D_dataset.py
+# Date : May 25th 2025
+# Description : Machine learning pipeline for the 2D dataset.
+# Usage : python3 machine_learning.py
 #************************************
 
 ###############     LIBRARIES     ###############
@@ -21,6 +21,7 @@ import torch
 import torch.nn as nn
 import torch.utils.data as data
 import torch.optim as optim
+from torchvision import models, transforms
 
 # Visualisation
 from tqdm import tqdm
@@ -39,8 +40,8 @@ np.random.seed(0)
 
 # Hyperparameters
 BATCH_SIZE = 4
-NUM_EPOCHS = 40
-LEARNING_RATE = 0.005
+NUM_EPOCHS = 100
+LEARNING_RATE = 0.05
 
 
 ###############     DATA PREPROCESSING     ###############
@@ -119,6 +120,45 @@ def reshape_and_normalize_images(images):
     return reshaped_images
 
 
+def preprocess_train_for_resnet(images):
+    """
+    Resize and normalize train images for ResNet.
+    Args:
+        images (torch.Tensor): shape (N, 3, H, W)
+    Returns:
+        torch.Tensor: shape (N, 3, 224, 224)
+    """
+    preprocess = transforms.Compose([
+        transforms.ToPILImage(),
+        transforms.Resize((224, 224)),
+        transforms.RandomHorizontalFlip(),
+        transforms.RandomRotation(180),
+        transforms.RandomVerticalFlip(),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+    ])
+    processed = [preprocess(img.permute(1,2,0).numpy()) for img in images]
+    return torch.stack(processed)
+
+
+def preprocess_test_for_resnet(images):
+    """
+    Resize and normalize test images for ResNet.
+    Args:
+        images (torch.Tensor): shape (N, 3, H, W)
+    Returns:
+        torch.Tensor: shape (N, 3, 224, 224)
+    """
+    preprocess = transforms.Compose([
+        transforms.ToPILImage(),
+        transforms.Resize((224, 224)),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+    ])
+    processed = [preprocess(img.permute(1,2,0).numpy()) for img in images]
+    return torch.stack(processed)
+
+
 ###############     MACHINE LEARNING     ###############
 
 # Loss functions
@@ -138,6 +178,7 @@ def UAR(outs:list, tars:list) -> float:
     uar = sklearn.metrics.recall_score(tars, outs, average='macro')
     return uar
 
+### My own models
 
 # Convolutional Neural Network (CNN) model
 class Net(nn.Module):
@@ -239,7 +280,7 @@ def create_CNN(input_shape, num_classes):
     return model
 
 
-# Shallow MLP
+# MLPs
 class ShallowMLP(nn.Module):
     def __init__(self, input_shape, num_classes):
         super().__init__()
@@ -256,7 +297,6 @@ class ShallowMLP(nn.Module):
  
 def create_shallow_mlp(input_shape, num_classes):
     return ShallowMLP(input_shape, num_classes)
-
 
 class PooledMLP(nn.Module):
     def __init__(self, input_shape, num_classes):
@@ -277,6 +317,22 @@ class PooledMLP(nn.Module):
 def create_pooled_mlp(input_shape, num_classes):
     return PooledMLP(input_shape, num_classes)
 
+
+### Pretrained models
+
+def create_resnet18(input_shape, num_classes):
+    model = models.resnet18(weights=models.ResNet18_Weights.DEFAULT)  # Load pretrained weights
+    model.fc = nn.Linear(model.fc.in_features, num_classes)  # Replace the final layer
+    
+    # Freeze all layers except the final fully connected layer
+    for param in model.parameters():
+        param.requires_grad = False
+    for param in model.fc.parameters():
+        param.requires_grad = True
+        
+    model = model.to(DEVICE)
+    return model
+    
 
 ###############     TRAINING AND TESTING     ###############
 
@@ -359,7 +415,8 @@ def run_classic_evaluation(model, train_dataset, test_dataset, learning_rate=LEA
     criterion = nn.CrossEntropyLoss(weight=class_weights)
     
     # Define the optimizer
-    optimizer = optim.SGD(model.parameters(), lr=learning_rate, momentum=0.9)
+    # optimizer = optim.SGD(model.parameters(), lr=learning_rate, momentum=0.9)
+    optimizer = optim.Adam(model.parameters(), lr=learning_rate)
     
     # To save predictions to CSV
     all_epoch_preds = []
@@ -385,7 +442,7 @@ def run_classic_evaluation(model, train_dataset, test_dataset, learning_rate=LEA
     print(f"==> Process done\nResults saved to {csv_filename}")
 
 
-def run_sanity_check(model, feats_train_data, labels_train_data, learning_rate=0.01, num_epochs=20, console_output=False, csv_filename="sanity_check_predictions.csv"):
+def run_sanity_check(model, feats_train_data, labels_train_data, learning_rate=LEARNING_RATE, num_epochs=NUM_EPOCHS, console_output=False, csv_filename="sanity_check_predictions.csv"):
     
     samples_per_class = 2
     selected_indices = []
@@ -449,7 +506,7 @@ def write_predictions_csv(targets, all_epoch_preds, all_epoch_accuracy, all_epoc
     with open(filename, "w", newline="") as csvfile:
         writer = csv.writer(csvfile)
         # Write header
-        header = ["target"] + [f"epoch_{i+1}" for i in range(num_epochs)]
+        header = ["target"] + [f"e_{i+1}" for i in range(num_epochs)]
         writer.writerow(header)
         # Write rows
         for idx in range(num_samples):
@@ -483,7 +540,6 @@ if __name__ == "__main__":
     # Reshape the array and normalize the data
     feats_train_data = reshape_and_normalize_images(feats_train_data)
     feats_dev_data = reshape_and_normalize_images(feats_dev_data)
-    data_shape = feats_train_data.shape[1:] # [channels, height, width]
     
     # Convert to PyTorch tensors
     feats_train_data = torch.from_numpy(feats_train_data)
@@ -491,22 +547,31 @@ if __name__ == "__main__":
     feats_dev_data = torch.from_numpy(feats_dev_data)
     labels_dev_data = torch.from_numpy(labels_dev_data)
     
+    # Preprocess for ResNet (resize, normalization)
+    feats_train_data = preprocess_train_for_resnet(feats_train_data) 
+    feats_dev_data = preprocess_test_for_resnet(feats_dev_data)
+    data_shape = feats_train_data.shape[1:]  # Is now [3, 224, 224] (channels, height, width)
+    
     # Combine features and labels into a single dataset
     train_dataset = [[feats_train_data[i], labels_train_data[i]] for i in range(len(feats_train_data))]
     dev_dataset = [[feats_dev_data[i], labels_dev_data[i]] for i in range(len(feats_dev_data))]
     
-    # Create the model
+    #####   Create the model   #####
+    ## My own models
     # model = create_CNN(input_shape=data_shape, num_classes=n_classes)
     # model = create_shallow_mlp(input_shape=data_shape, num_classes=n_classes)
-    model = create_pooled_mlp(input_shape=data_shape, num_classes=n_classes)    
+    # model = create_pooled_mlp(input_shape=data_shape, num_classes=n_classes)    
     
-    # Evaluate the model
+    ## Pretrained models
+    model = create_resnet18(input_shape=data_shape, num_classes=n_classes)
     
-    # Classic evaluation on the dev_dataset using LEARNING_RATE and NUM_EPOCHS
-    # run_classic_evaluation(model=model, train_dataset=train_dataset, test_dataset=dev_dataset)
+    #####   Evaluate the model   #####
     
-    # Sanity check on the train_dataset using a small subset of samples
-    run_sanity_check(model=model, feats_train_data=feats_train_data, labels_train_data=labels_train_data, learning_rate=0.01, num_epochs=40)
+    ## Classic evaluation on the dev_dataset using LEARNING_RATE and NUM_EPOCHS
+    run_classic_evaluation(model=model, train_dataset=train_dataset, test_dataset=dev_dataset)
+    
+    ## Sanity check on the train_dataset using a small subset of samples
+    # run_sanity_check(model=model, feats_train_data=feats_train_data, labels_train_data=labels_train_data)
     
 
     
