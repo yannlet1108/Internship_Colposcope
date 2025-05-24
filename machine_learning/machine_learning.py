@@ -39,7 +39,7 @@ np.random.seed(0)
 
 # Hyperparameters
 BATCH_SIZE = 4
-NUM_EPOCHS = 20
+NUM_EPOCHS = 40
 LEARNING_RATE = 0.005
 
 
@@ -118,6 +118,7 @@ def reshape_and_normalize_images(images):
     
     return reshaped_images
 
+
 ###############     MACHINE LEARNING     ###############
 
 # Loss functions
@@ -137,7 +138,8 @@ def UAR(outs:list, tars:list) -> float:
     uar = sklearn.metrics.recall_score(tars, outs, average='macro')
     return uar
 
-# CNN
+
+# Convolutional Neural Network (CNN) model
 class Net(nn.Module):
     def __init__(self, in_channels):
         super(Net, self).__init__()
@@ -236,6 +238,46 @@ def create_CNN(input_shape, num_classes):
     model.build_fc(input_shape, num_classes)
     return model
 
+
+# Shallow MLP
+class ShallowMLP(nn.Module):
+    def __init__(self, input_shape, num_classes):
+        super().__init__()
+        flat_size = int(np.prod(input_shape))
+        self.net = nn.Sequential(
+            nn.Flatten(),
+            nn.Linear(flat_size, 64),
+            nn.ReLU(),
+            nn.Linear(64, num_classes)
+        )
+
+    def forward(self, x):
+        return self.net(x)
+ 
+def create_shallow_mlp(input_shape, num_classes):
+    return ShallowMLP(input_shape, num_classes)
+
+
+class PooledMLP(nn.Module):
+    def __init__(self, input_shape, num_classes):
+        super().__init__()
+        # Apply global average pooling to reduce each channel to 1 value
+        self.pool = nn.AdaptiveAvgPool2d((1, 1))
+        flat_size = input_shape[0]  # Number of channels after pooling
+        self.net = nn.Sequential(
+            nn.Flatten(),
+            nn.Linear(flat_size, 128),
+            nn.ReLU(),
+            nn.Linear(128, num_classes)
+        )
+    def forward(self, x):
+        x = self.pool(x)
+        return self.net(x)
+    
+def create_pooled_mlp(input_shape, num_classes):
+    return PooledMLP(input_shape, num_classes)
+
+
 ###############     TRAINING AND TESTING     ###############
 
 def train_model(model, dataloader, criterion, optimizer, num_epochs, device):
@@ -259,8 +301,8 @@ def train_model(model, dataloader, criterion, optimizer, num_epochs, device):
             # backward pass + optimization step
             loss.backward() # calcule les gradients d(loss)/d(param)
             optimizer.step() # met à jour les poids (ici avec SGD)
-            
-            
+
+                    
 def test_model(model, dataloader, console_output=False):
     """ Test the model on the given dataloader and return predictions and targets.
 
@@ -361,7 +403,8 @@ def run_sanity_check(model, feats_train_data, labels_train_data, learning_rate=0
     criterion = nn.CrossEntropyLoss()
     
     # Define the optimizer
-    optimizer = optim.SGD(model.parameters(), lr=learning_rate, momentum=0.9)
+    # optimizer = optim.SGD(model.parameters(), lr=learning_rate, momentum=0.9)
+    optimizer = optim.Adam(model.parameters(), lr=learning_rate)
     
     # To write predictions to CSV
     all_epoch_preds = []
@@ -387,8 +430,8 @@ def run_sanity_check(model, feats_train_data, labels_train_data, learning_rate=0
     write_predictions_csv(targets_for_csv, all_epoch_preds, all_epoch_accuracy, all_epoch_uar, csv_filename)
 
     print(f"==> Sanity check done.\nResults saved to {csv_filename}")
-        
-        
+
+       
 ###############     POSTPROCESSING     ###############
 
 def write_predictions_csv(targets, all_epoch_preds, all_epoch_accuracy, all_epoch_uar , filename):
@@ -453,16 +496,17 @@ if __name__ == "__main__":
     dev_dataset = [[feats_dev_data[i], labels_dev_data[i]] for i in range(len(feats_dev_data))]
     
     # Create the model
-    model = create_CNN(input_shape=data_shape, num_classes=n_classes)
-    
+    # model = create_CNN(input_shape=data_shape, num_classes=n_classes)
+    # model = create_shallow_mlp(input_shape=data_shape, num_classes=n_classes)
+    model = create_pooled_mlp(input_shape=data_shape, num_classes=n_classes)    
     
     # Evaluate the model
     
     # Classic evaluation on the dev_dataset using LEARNING_RATE and NUM_EPOCHS
-    run_classic_evaluation(model=model, train_dataset=train_dataset, test_dataset=dev_dataset)
+    # run_classic_evaluation(model=model, train_dataset=train_dataset, test_dataset=dev_dataset)
     
     # Sanity check on the train_dataset using a small subset of samples
-    # run_sanity_check(model=model, feats_train_data=feats_train_data, labels_train_data=labels_train_data)
+    run_sanity_check(model=model, feats_train_data=feats_train_data, labels_train_data=labels_train_data, learning_rate=0.01, num_epochs=40)
     
 
     
