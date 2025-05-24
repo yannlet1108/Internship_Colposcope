@@ -14,7 +14,6 @@ import os
 import cv2 as cv #OpenCV
 import numpy as np
 import sklearn
-import sklearn.preprocessing
 import sklearn.metrics
 from sklearn.utils.class_weight import compute_class_weight
 
@@ -311,7 +310,11 @@ def run_classic_evaluation(model, train_dataset, test_dataset, learning_rate=LEA
     test_loader = data.DataLoader(dataset=test_dataset, batch_size=2*BATCH_SIZE, shuffle=False)
     
     # Loss function
-    criterion = nn.CrossEntropyLoss()
+    # criterion = nn.CrossEntropyLoss()
+    # Compute class weights from your training labels (convert to numpy if needed)
+    class_weights = compute_class_weight(class_weight='balanced', classes=np.unique(labels_train_data.numpy()), y=labels_train_data.numpy())
+    class_weights = torch.tensor(class_weights, dtype=torch.float)
+    criterion = nn.CrossEntropyLoss(weight=class_weights)
     
     # Define the optimizer
     optimizer = optim.SGD(model.parameters(), lr=learning_rate, momentum=0.9)
@@ -355,11 +358,7 @@ def run_sanity_check(model, feats_train_data, labels_train_data, learning_rate=0
     tiny_loader = data.DataLoader(dataset=tiny_dataset, batch_size=len(tiny_dataset), shuffle=False)
     
     # Loss function
-    # criterion = nn.CrossEntropyLoss()
-    # Compute class weights from your training labels (convert to numpy if needed)
-    class_weights = compute_class_weight(class_weight='balanced', classes=np.unique(labels_train_data.numpy()), y=labels_train_data.numpy())
-    class_weights = torch.tensor(class_weights, dtype=torch.float)
-    criterion = nn.CrossEntropyLoss(weight=class_weights)
+    criterion = nn.CrossEntropyLoss()
     
     # Define the optimizer
     optimizer = optim.SGD(model.parameters(), lr=learning_rate, momentum=0.9)
