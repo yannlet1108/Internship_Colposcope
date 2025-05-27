@@ -40,15 +40,15 @@ np.random.seed(0)
 
 # Hyperparameters
 BATCH_SIZE = 4
-NUM_EPOCHS = 100
-LEARNING_RATE = 0.1
+NUM_EPOCHS = 40
+LEARNING_RATE = 0.005
 
 # Easy run
 RUN = {
     "mode": "classic",  # "sanity" for sanity check, "classic" for classic evaluation
-    "model": "resnet18",  # "simple_cnn", "shallow_mlp", "pooled_mlp", "resnet18", "complex_cnn"
+    "model": "simple_cnn",  # "simple_cnn", "shallow_mlp", "pooled_mlp", "resnet18", "complex_cnn"
     "criterion": "weighted_CEL", # "CEL" (Cross Entropy Loss) or "weighted_CEL". IGNORED IN SANITY CHECKS (no impact)
-    "optimizer": "Adam",  # "SGD" or "Adam"
+    "optimizer": "Adam",  # "SGD" or "Adam" 
     "data_augmentation": True,  # Only available for ResNet18
 }
 
@@ -394,10 +394,9 @@ class PooledMLP(nn.Module):
 def create_pooled_mlp(input_shape, num_classes):
     return PooledMLP(input_shape, num_classes)
 
-
 ### Pretrained models
 
-def create_resnet18(input_shape, num_classes):
+def create_resnet18(num_classes):
     model = models.resnet18(weights=models.ResNet18_Weights.DEFAULT)  # Load pretrained weights
     model.fc = nn.Linear(model.fc.in_features, num_classes)  # Replace the final layer
     
@@ -476,32 +475,36 @@ def test_model(model, dataloader, console_output=False):
         return all_preds, all_targets
 
 
-def run_classic_evaluation(model, train_dataset, test_dataset, learning_rate=LEARNING_RATE, num_epochs=NUM_EPOCHS, console_output=False, csv_filename="predictions.csv"):
+def run_classic_evaluation(model, train_dataset, test_dataset,
+                           selected_criterion=RUN["criterion"],selected_optimizer=RUN["optimizer"],
+                           learning_rate=LEARNING_RATE, num_epochs=NUM_EPOCHS,
+                           console_output=False, csv_filename="predictions.csv"):
     
     print(f"\n==> Running classic evaluation on the {len(train_dataset)} training samples and {len(test_dataset)} testing samples...")
+    print(f"Using model: {RUN['model']}, criterion: {selected_criterion}, optimizer: {selected_optimizer}, learning rate: {learning_rate}, num epochs: {num_epochs}")
     
     # Encapsulate the data in a PyTorch DataLoader
     train_loader = data.DataLoader(dataset=train_dataset, batch_size=BATCH_SIZE, shuffle=True)
     test_loader = data.DataLoader(dataset=test_dataset, batch_size=2*BATCH_SIZE, shuffle=False)
     
     # Loss function
-    if RUN["criterion"] == "CEL":
+    if selected_criterion == "CEL":
         criterion = nn.CrossEntropyLoss()
-    elif RUN["criterion"] == "weighted_CEL":
+    elif selected_criterion == "weighted_CEL":
         # Compute class weights for balanced loss
         class_weights = compute_class_weight(class_weight='balanced', classes=np.unique(labels_train_data.numpy()), y=labels_train_data.numpy())
         class_weights = torch.tensor(class_weights, dtype=torch.float)
         criterion = nn.CrossEntropyLoss(weight=class_weights)
     else:
-        raise ValueError(f"Unknown criterion: {RUN['criterion']}. Choose 'CEL' or 'weighted_CEL'.")
+        raise ValueError(f"Unknown criterion: {selected_criterion}. Choose 'CEL' or 'weighted_CEL'.")
     
     # Define the optimizer
-    if RUN["optimizer"] == "SGD":
+    if selected_optimizer == "SGD":
         optimizer = optim.SGD(model.parameters(), lr=learning_rate, momentum=0.9)
-    elif RUN["optimizer"] == "Adam":
+    elif selected_optimizer == "Adam":
         optimizer = optim.Adam(model.parameters(), lr=learning_rate)
     else:
-        raise ValueError(f"Unknown optimizer: {RUN['optimizer']}. Choose 'SGD' or 'Adam'.")
+        raise ValueError(f"Unknown optimizer: {selected_optimizer}. Choose 'SGD' or 'Adam'.")
     
     # To save predictions to CSV
     all_epoch_preds = []
@@ -527,8 +530,12 @@ def run_classic_evaluation(model, train_dataset, test_dataset, learning_rate=LEA
     print(f"==> Process done\nResults saved to {csv_filename}")
 
 
-def run_sanity_check(model, feats_train_data, labels_train_data, learning_rate=LEARNING_RATE, num_epochs=NUM_EPOCHS, console_output=False, csv_filename="sanity_check_predictions.csv"):
+def run_sanity_check(model, feats_train_data, labels_train_data,
+                     selected_optimizer=RUN["optimizer"],
+                     learning_rate=LEARNING_RATE, num_epochs=NUM_EPOCHS,
+                     console_output=False, csv_filename="sanity_check_predictions.csv"):
     
+    # Select a small, balanced subset of the training data
     samples_per_class = 2
     selected_indices = []
     for class_idx in np.unique(labels_train_data.numpy()):
@@ -546,12 +553,12 @@ def run_sanity_check(model, feats_train_data, labels_train_data, learning_rate=L
     criterion = nn.CrossEntropyLoss()
     
     # Define the optimizer
-    if RUN["optimizer"] == "SGD":
+    if selected_optimizer == "SGD":
         optimizer = optim.SGD(model.parameters(), lr=learning_rate, momentum=0.9)
-    elif RUN["optimizer"] == "Adam":
+    elif selected_optimizer == "Adam":
         optimizer = optim.Adam(model.parameters(), lr=learning_rate)
     else:
-        raise ValueError(f"Unknown optimizer: {RUN['optimizer']}. Choose 'SGD' or 'Adam'.")
+        raise ValueError(f"Unknown optimizer: {selected_optimizer}. Choose 'SGD' or 'Adam'.")
     
     # To write predictions to CSV
     all_epoch_preds = []
@@ -560,6 +567,7 @@ def run_sanity_check(model, feats_train_data, labels_train_data, learning_rate=L
     all_epoch_uar = []
 
     print(f"\n==> Sanity check: Overfitting a tiny, balanced subset of {len(tiny_dataset)} samples...")
+    print(f"Using model: {RUN['model']}, criterion: CEL, optimizer: {selected_optimizer}, learning rate: {learning_rate}, num epochs: {num_epochs}")
     
     for i in range(num_epochs): 
         print(f"\nSanity Epoch {i+1}/{num_epochs}...")
@@ -581,7 +589,7 @@ def run_sanity_check(model, feats_train_data, labels_train_data, learning_rate=L
        
 ###############     POSTPROCESSING     ###############
 
-def write_predictions_csv(targets, all_epoch_preds, all_epoch_accuracy, all_epoch_uar , filename):
+def write_predictions_csv(targets, all_epoch_preds, all_epoch_accuracy, all_epoch_uar, filename):
     """
     Write targets and predictions for each epoch to a CSV file.
 
@@ -665,7 +673,7 @@ if __name__ == "__main__":
         model = create_pooled_mlp(input_shape=data_shape, num_classes=n_classes)
     ## Pretrained models
     elif RUN["model"] == "resnet18":
-        model = create_resnet18(input_shape=data_shape, num_classes=n_classes)
+        model = create_resnet18(num_classes=n_classes)
     else:
         raise ValueError(f"Unknown model type: {RUN['model']}. Choose from 'cnn', 'shallow_mlp', 'pooled_mlp', or 'resnet18'.")
     
@@ -676,10 +684,18 @@ if __name__ == "__main__":
         train_dataset = [[feats_train_data[i], labels_train_data[i]] for i in range(len(feats_train_data))]
         dev_dataset = [[feats_dev_data[i], labels_dev_data[i]] for i in range(len(feats_dev_data))]
         # Run
-        run_classic_evaluation(model=model, train_dataset=train_dataset, test_dataset=dev_dataset, learning_rate=0.001, csv_filename="predictions_lr_0.001.csv")
-        run_classic_evaluation(model=model, train_dataset=train_dataset, test_dataset=dev_dataset, learning_rate=0.005, csv_filename="predictions_lr_0.005.csv")
-        run_classic_evaluation(model=model, train_dataset=train_dataset, test_dataset=dev_dataset, learning_rate=0.01, csv_filename="predictions_lr_0.01.csv")
-        run_classic_evaluation(model=model, train_dataset=train_dataset, test_dataset=dev_dataset, learning_rate=0.05, csv_filename="predictions_lr_0.05.csv")
+        run_classic_evaluation(model=model, train_dataset=train_dataset, test_dataset=dev_dataset)
+        
+        ## Series of runs with different learning rates and optimizers
+        # run_classic_evaluation(model=model, train_dataset=train_dataset, test_dataset=dev_dataset, learning_rate=0.0005, csv_filename="SGD_0.0005.csv", selected_optimizer="SGD")
+        # run_classic_evaluation(model=model, train_dataset=train_dataset, test_dataset=dev_dataset, learning_rate=0.001, csv_filename="SGD_0.001.csv", selected_optimizer="SGD")
+        # run_classic_evaluation(model=model, train_dataset=train_dataset, test_dataset=dev_dataset, learning_rate=0.005, csv_filename="SGD_0.005.csv", selected_optimizer="SGD")
+        # run_classic_evaluation(model=model, train_dataset=train_dataset, test_dataset=dev_dataset, learning_rate=0.01, csv_filename="SGD_0.01.csv", selected_optimizer="SGD")
+        
+        # run_classic_evaluation(model=model, train_dataset=train_dataset, test_dataset=dev_dataset, learning_rate=0.0005, csv_filename="Adam_0.0005.csv", selected_optimizer="Adam")
+        # run_classic_evaluation(model=model, train_dataset=train_dataset, test_dataset=dev_dataset, learning_rate=0.001, csv_filename="Adam_0.001.csv", selected_optimizer="Adam")
+        # run_classic_evaluation(model=model, train_dataset=train_dataset, test_dataset=dev_dataset, learning_rate=0.005, csv_filename="Adam_0.005.csv", selected_optimizer="Adam")
+        # run_classic_evaluation(model=model, train_dataset=train_dataset, test_dataset=dev_dataset, learning_rate=0.01, csv_filename="Adam_0.01.csv", selected_optimizer="Adam")
 
     elif RUN["mode"] == "sanity": # Sanity check on the train_dataset using a small subset of samples
         run_sanity_check(model=model, feats_train_data=feats_train_data, labels_train_data=labels_train_data)
