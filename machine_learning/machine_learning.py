@@ -41,7 +41,16 @@ np.random.seed(0)
 # Hyperparameters
 BATCH_SIZE = 4
 NUM_EPOCHS = 100
-LEARNING_RATE = 0.05
+LEARNING_RATE = 0.1
+
+# Easy run
+RUN = {
+    "mode": "classic",  # "sanity" for sanity check, "classic" for classic evaluation
+    "model": "resnet18",  # "simple_cnn", "shallow_mlp", "pooled_mlp", "resnet18", "complex_cnn"
+    "criterion": "weighted_CEL", # "CEL" (Cross Entropy Loss) or "weighted_CEL". IGNORED IN SANITY CHECKS (no impact)
+    "optimizer": "Adam",  # "SGD" or "Adam"
+    "data_augmentation": True,  # Only available for ResNet18
+}
 
 
 ###############     DATA PREPROCESSING     ###############
@@ -181,18 +190,16 @@ def UAR(outs:list, tars:list) -> float:
 ### My own models
 
 # Convolutional Neural Network (CNN) model
-class Net(nn.Module):
+class SimpleCNN(nn.Module):
     def __init__(self, in_channels):
-        super(Net, self).__init__()
+        super(SimpleCNN, self).__init__()
 
         self.layer1 = nn.Sequential(
             nn.Conv2d(in_channels, 16, kernel_size=3),
-            # nn.BatchNorm2d(16),
             nn.ReLU())
 
         self.layer2_1 = nn.Sequential(
             nn.Conv2d(16, 64, kernel_size=3),
-            # nn.BatchNorm2d(16),
             nn.ReLU())
 
         self.layer2_2 = nn.Sequential(
@@ -200,32 +207,18 @@ class Net(nn.Module):
 
         self.layer3 = nn.Sequential(
             nn.Conv2d(64, 64, kernel_size=3),
-            # nn.BatchNorm2d(64),
             nn.ReLU())
 
         self.layer4 = nn.Sequential(
             nn.Conv2d(64, 64, kernel_size=3),
-            # nn.BatchNorm2d(64),
             nn.ReLU())
 
         self.layer5_1 = nn.Sequential(
             nn.Conv2d(64, 64, kernel_size=3, padding=1),
-            # nn.BatchNorm2d(64),
             nn.ReLU())
 
         self.layer5_2 = nn.Sequential(
             nn.MaxPool2d(kernel_size=2, stride=2))
-
-        """self.fc = nn.Sequential(
-            nn.Linear(1853376, 128),
-            # nn.Linear(64 * 148 * 198, 128),
-            # nn.Linear(64 * 4 * 4, 128),
-            # nn.Dropout(p=0.2),
-            nn.ReLU(),
-            nn.Linear(128, 128),
-            nn.ReLU(),
-            nn.Linear(128, num_classes)
-            )"""
         
         self.fc = None  # Will be defined after computing feature size
 
@@ -252,7 +245,7 @@ class Net(nn.Module):
             nn.Linear(128, num_classes)
         )
         
-    def forward(self, x): # description de l'enchaînement des couches dans l'inférence
+    def forward(self, x): 
         x = self.layer1(x)
         x = self.layer2_1(x)
         x = self.layer2_2(x)
@@ -260,25 +253,109 @@ class Net(nn.Module):
         x = self.layer4(x)
         x = self.layer5_1(x)
         x = self.layer5_2(x)
-        # print(f"Model shape before flattening: {x.shape}")
         x = x.view(x.size(0), -1)
         x = self.fc(x)
         return x
 
-
-def create_CNN(input_shape, num_classes):
+def create_simple_CNN(input_shape, num_classes):
     """
     Args:
         input_shape (PyTorch array): [channels, height, width]
         num_classes (int): number of classes
 
     Returns:
-        model (Net): the CNN model
+        model (SimpleCNN): the CNN model
     """
-    model = Net(input_shape[0])
+    model = SimpleCNN(input_shape[0])
     model.build_fc(input_shape, num_classes)
     return model
 
+class ComplexCNN(nn.Module):
+    def __init__(self, in_channels):
+        super(ComplexCNN, self).__init__()
+
+        self.layer1 = nn.Sequential(
+            nn.Conv2d(in_channels, 16, kernel_size=3),
+            nn.BatchNorm2d(16),
+            nn.ReLU())
+
+        self.layer2_1 = nn.Sequential(
+            nn.Conv2d(16, 64, kernel_size=3),
+            nn.BatchNorm2d(64),
+            nn.ReLU())
+
+        self.layer2_2 = nn.Sequential(
+            nn.MaxPool2d(kernel_size=2, stride=2))
+
+        self.layer3 = nn.Sequential(
+            nn.Conv2d(64, 64, kernel_size=3),
+            nn.BatchNorm2d(64),
+            nn.ReLU())
+
+        self.layer4 = nn.Sequential(
+            nn.Conv2d(64, 64, kernel_size=3),
+            nn.BatchNorm2d(64),
+            nn.ReLU())
+
+        self.layer5_1 = nn.Sequential(
+            nn.Conv2d(64, 64, kernel_size=3, padding=1),
+            nn.BatchNorm2d(64),
+            nn.ReLU())
+
+        self.layer5_2 = nn.Sequential(
+            nn.MaxPool2d(kernel_size=2, stride=2))
+        
+        self.fc = None  # Will be defined after computing feature size
+
+    def _get_conv_output(self, shape):
+        # Create a dummy input to infer the output size
+        with torch.no_grad():
+            input = torch.zeros(1, *shape)
+            x = self.layer1(input)
+            x = self.layer2_1(x)
+            x = self.layer2_2(x)
+            x = self.layer3(x)
+            x = self.layer4(x)
+            x = self.layer5_1(x)
+            x = self.layer5_2(x)
+            return int(np.prod(x.size()))
+
+    def build_fc(self, input_shape, num_classes):
+        conv_output_size = self._get_conv_output(input_shape)
+        self.fc = nn.Sequential(
+            nn.Linear(conv_output_size, 128),
+            nn.Dropout(p=0.2),
+            nn.ReLU(),
+            nn.Linear(128, 128),
+            nn.ReLU(),
+            nn.Linear(128, num_classes)
+        )
+        
+    def forward(self, x): 
+        x = self.layer1(x)
+        x = self.layer2_1(x)
+        x = self.layer2_2(x)
+        x = self.layer3(x)
+        x = self.layer4(x)
+        x = self.layer5_1(x)
+        x = self.layer5_2(x)
+        x = x.view(x.size(0), -1)
+        x = self.fc(x)
+        return x
+
+def create_complex_CNN(input_shape, num_classes):
+    """ Create a ComplexCNN model with Batch Normalization and Dropout.
+    
+    Args:
+        input_shape (PyTorch array): [channels, height, width]
+        num_classes (int): number of classes
+
+    Returns:
+        model (ComplexCNN): the CNN model
+    """
+    model = ComplexCNN(input_shape[0]) 
+    model.build_fc(input_shape, num_classes)
+    return model
 
 # MLPs
 class ShallowMLP(nn.Module):
@@ -408,15 +485,23 @@ def run_classic_evaluation(model, train_dataset, test_dataset, learning_rate=LEA
     test_loader = data.DataLoader(dataset=test_dataset, batch_size=2*BATCH_SIZE, shuffle=False)
     
     # Loss function
-    # criterion = nn.CrossEntropyLoss()
-    # Compute class weights from your training labels (convert to numpy if needed)
-    class_weights = compute_class_weight(class_weight='balanced', classes=np.unique(labels_train_data.numpy()), y=labels_train_data.numpy())
-    class_weights = torch.tensor(class_weights, dtype=torch.float)
-    criterion = nn.CrossEntropyLoss(weight=class_weights)
+    if RUN["criterion"] == "CEL":
+        criterion = nn.CrossEntropyLoss()
+    elif RUN["criterion"] == "weighted_CEL":
+        # Compute class weights for balanced loss
+        class_weights = compute_class_weight(class_weight='balanced', classes=np.unique(labels_train_data.numpy()), y=labels_train_data.numpy())
+        class_weights = torch.tensor(class_weights, dtype=torch.float)
+        criterion = nn.CrossEntropyLoss(weight=class_weights)
+    else:
+        raise ValueError(f"Unknown criterion: {RUN['criterion']}. Choose 'CEL' or 'weighted_CEL'.")
     
     # Define the optimizer
-    # optimizer = optim.SGD(model.parameters(), lr=learning_rate, momentum=0.9)
-    optimizer = optim.Adam(model.parameters(), lr=learning_rate)
+    if RUN["optimizer"] == "SGD":
+        optimizer = optim.SGD(model.parameters(), lr=learning_rate, momentum=0.9)
+    elif RUN["optimizer"] == "Adam":
+        optimizer = optim.Adam(model.parameters(), lr=learning_rate)
+    else:
+        raise ValueError(f"Unknown optimizer: {RUN['optimizer']}. Choose 'SGD' or 'Adam'.")
     
     # To save predictions to CSV
     all_epoch_preds = []
@@ -457,11 +542,16 @@ def run_sanity_check(model, feats_train_data, labels_train_data, learning_rate=L
     tiny_loader = data.DataLoader(dataset=tiny_dataset, batch_size=len(tiny_dataset), shuffle=False)
     
     # Loss function
+    # As the dataset is balanced, adding class weights wouldn't make any difference
     criterion = nn.CrossEntropyLoss()
     
     # Define the optimizer
-    # optimizer = optim.SGD(model.parameters(), lr=learning_rate, momentum=0.9)
-    optimizer = optim.Adam(model.parameters(), lr=learning_rate)
+    if RUN["optimizer"] == "SGD":
+        optimizer = optim.SGD(model.parameters(), lr=learning_rate, momentum=0.9)
+    elif RUN["optimizer"] == "Adam":
+        optimizer = optim.Adam(model.parameters(), lr=learning_rate)
+    else:
+        raise ValueError(f"Unknown optimizer: {RUN['optimizer']}. Choose 'SGD' or 'Adam'.")
     
     # To write predictions to CSV
     all_epoch_preds = []
@@ -548,30 +638,51 @@ if __name__ == "__main__":
     labels_dev_data = torch.from_numpy(labels_dev_data)
     
     # Preprocess for ResNet (resize, normalization)
-    feats_train_data = preprocess_train_for_resnet(feats_train_data) 
-    feats_dev_data = preprocess_test_for_resnet(feats_dev_data)
-    data_shape = feats_train_data.shape[1:]  # Is now [3, 224, 224] (channels, height, width)
+    if RUN["model"] == "resnet18":
+        if RUN["data_augmentation"]:
+            # Data augmentation
+            feats_train_data = preprocess_train_for_resnet(feats_train_data) 
+        else:
+            # No data augmentation, just resize and normalize
+            feats_train_data = preprocess_test_for_resnet(feats_train_data)
+        # Resize and normalize dev data
+        feats_dev_data = preprocess_test_for_resnet(feats_dev_data)
     
-    # Combine features and labels into a single dataset
-    train_dataset = [[feats_train_data[i], labels_train_data[i]] for i in range(len(feats_train_data))]
-    dev_dataset = [[feats_dev_data[i], labels_dev_data[i]] for i in range(len(feats_dev_data))]
+    
+    data_shape = feats_train_data.shape[1:] # (channels, height, width)
+    # The original images are [3, 600, 800], resized to [3, 224, 224] for ResNet18 
     
     #####   Create the model   #####
-    ## My own models
-    # model = create_CNN(input_shape=data_shape, num_classes=n_classes)
-    # model = create_shallow_mlp(input_shape=data_shape, num_classes=n_classes)
-    # model = create_pooled_mlp(input_shape=data_shape, num_classes=n_classes)    
     
+    ## My own models
+    if RUN["model"] == "simple_cnn":
+        model = create_simple_CNN(input_shape=data_shape, num_classes=n_classes)
+    elif RUN["model"] == "complex_cnn":
+        model = create_complex_CNN(input_shape=data_shape, num_classes=n_classes)
+    elif RUN["model"] == "shallow_mlp":
+        model = create_shallow_mlp(input_shape=data_shape, num_classes=n_classes)
+    elif RUN["model"] == "pooled_mlp":
+        model = create_pooled_mlp(input_shape=data_shape, num_classes=n_classes)
     ## Pretrained models
-    model = create_resnet18(input_shape=data_shape, num_classes=n_classes)
+    elif RUN["model"] == "resnet18":
+        model = create_resnet18(input_shape=data_shape, num_classes=n_classes)
+    else:
+        raise ValueError(f"Unknown model type: {RUN['model']}. Choose from 'cnn', 'shallow_mlp', 'pooled_mlp', or 'resnet18'.")
     
     #####   Evaluate the model   #####
     
-    ## Classic evaluation on the dev_dataset using LEARNING_RATE and NUM_EPOCHS
-    run_classic_evaluation(model=model, train_dataset=train_dataset, test_dataset=dev_dataset)
-    
-    ## Sanity check on the train_dataset using a small subset of samples
-    # run_sanity_check(model=model, feats_train_data=feats_train_data, labels_train_data=labels_train_data)
-    
+    if RUN["mode"] == "classic": # Classic evaluation on the train and dev datasets
+        # Combine features and labels into a single dataset
+        train_dataset = [[feats_train_data[i], labels_train_data[i]] for i in range(len(feats_train_data))]
+        dev_dataset = [[feats_dev_data[i], labels_dev_data[i]] for i in range(len(feats_dev_data))]
+        # Run
+        run_classic_evaluation(model=model, train_dataset=train_dataset, test_dataset=dev_dataset, learning_rate=0.001, csv_filename="predictions_lr_0.001.csv")
+        run_classic_evaluation(model=model, train_dataset=train_dataset, test_dataset=dev_dataset, learning_rate=0.005, csv_filename="predictions_lr_0.005.csv")
+        run_classic_evaluation(model=model, train_dataset=train_dataset, test_dataset=dev_dataset, learning_rate=0.01, csv_filename="predictions_lr_0.01.csv")
+        run_classic_evaluation(model=model, train_dataset=train_dataset, test_dataset=dev_dataset, learning_rate=0.05, csv_filename="predictions_lr_0.05.csv")
 
-    
+    elif RUN["mode"] == "sanity": # Sanity check on the train_dataset using a small subset of samples
+        run_sanity_check(model=model, feats_train_data=feats_train_data, labels_train_data=labels_train_data)
+        
+    else:
+        raise ValueError(f"Unknown mode: {RUN['mode']}. Choose 'classic' or 'sanity'.")
