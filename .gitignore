@@ -1,3 +1,2 @@
 __pycache__
-private_constants.py
-machine_learning/*.csv
+machine_learning/*/csv_output/

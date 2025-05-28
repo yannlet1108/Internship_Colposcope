@@ -32,3 +32,5 @@ CONTRAST_MEDIATORS = ("acetic_acid", "lugol", "saline")
 # Image extension for 2D images
 IMAGE_EXTENSION = "jpg"
 
+# Folder name for csv output files
+CSV_FOLDER = "csv_output"

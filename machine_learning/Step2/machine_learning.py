@@ -30,7 +30,7 @@ import csv
 
 ###############     CONSTANTS     ###############
 
-from constants import TRAINPATH, DEVPATH, STATUS, CONTRAST_MEDIATORS, IMAGE_EXTENSION
+from constants import TRAINPATH, DEVPATH, STATUS, CONTRAST_MEDIATORS, IMAGE_EXTENSION, CSV_FOLDER
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -600,6 +600,8 @@ def write_predictions_csv(targets, all_epoch_preds, all_epoch_accuracy, all_epoc
     """
     num_epochs = len(all_epoch_preds)
     num_samples = len(targets)
+    
+    filename = os.path.join(CSV_FOLDER, filename)
 
     with open(filename, "w", newline="") as csvfile:
         writer = csv.writer(csvfile)
