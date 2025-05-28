@@ -95,7 +95,7 @@ def extract_labels(data):
     return np.array([data[patient]["status"] for patient in data])
 
 
-def extract_images(data, contrast_mediator = "All"):
+def extract_images(data, contrast_mediator = "lugol"):
     """ Extracting the desired images from the data dictionary.
     
     Args:
@@ -170,7 +170,7 @@ def preprocess_test_for_resnet(images):
 
 ###############     MACHINE LEARNING     ###############
 
-# Loss functions
+# Evaluation metrics
 def accuracy(outs:list, tars:list) -> float:
     """
     Calculating and returning the accuracy between outputs (`outs`) and targets (`tars`),
