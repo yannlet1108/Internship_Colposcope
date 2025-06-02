@@ -50,16 +50,16 @@ if DEVICE == "cuda":
 
 # Hyperparameters
 BATCH_SIZE = 4
-NUM_EPOCHS = 40
+NUM_EPOCHS = 100
 LEARNING_RATE = 0.0005
 
 # Easy run
 RUN = {
     "mode": "series",  # "sanity" for sanity check, "classic" for classic evaluation, "series" for a series of runs with different hyperparameters
-    "model": "complex_cnn",  # "simple_cnn", "shallow_mlp", "pooled_mlp", "resnet18", "complex_cnn"
+    "model": "resnet18",  # "simple_cnn", "shallow_mlp", "pooled_mlp", "resnet18", "complex_cnn"
     "criterion": "weighted_CEL", # "CEL" (Cross Entropy Loss) or "weighted_CEL". IGNORED IN SANITY CHECKS (no impact)
     "optimizer": "SGD",  # "SGD" or "Adam" 
-    "data_augmentation": False,  # Only available for ResNet18
+    "data_augmentation": True,  # Only available for ResNet18
 }
 
 
@@ -126,7 +126,7 @@ def extract_labels(data):
     return np.array([data[patient]["status"] for patient in data])
 
 
-def extract_images(data, contrast_mediator = "lugol"):
+def extract_images(data, contrast_mediator = "saline"):
     """ Extracting the desired images from the data dictionary.
     
     Args:
@@ -667,9 +667,9 @@ if __name__ == "__main__":
     n_classes = len(STATUS) 
     
     # Extract images and labels
-    feats_train_data = extract_images(train_data, contrast_mediator = "lugol")
+    feats_train_data = extract_images(train_data)
     labels_train_data = extract_labels(train_data)
-    feats_dev_data = extract_images(dev_data, contrast_mediator = "lugol")
+    feats_dev_data = extract_images(dev_data)
     labels_dev_data = extract_labels(dev_data)
     
     # Reshape the array and normalize the data
