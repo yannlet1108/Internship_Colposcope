@@ -32,7 +32,7 @@ import csv
 
 ###############     CONSTANTS     ###############
 
-from constants import TRAINPATH, DEVPATH, STATUS, CONTRAST_MEDIATORS, IMAGE_EXTENSION, CSV_FOLDER
+from constants import PATH2D, DATA_PARTITION, STATUS, CONTRAST_MEDIATORS, IMAGE_EXTENSION, CSV_FOLDER
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -65,27 +65,47 @@ RUN = {
 
 ###############     DATA PREPROCESSING     ###############
 
-def load_data(folder_path):
-    """ 
+def load_data(data_path):
+    """ Load the data from the selected folder into 2 dictionaries : train_data and dev_data.
+    
     Args:
-        folder_path (string): path to the Train or Dev dataset
+        data_path (string): path to the folder containing the data
 
     Returns:
         data: dictionary containing the data loaded from the folder
     """
     
-    data = {}
+    train_data = {}
+    dev_data = {}
     
-    for status in os.listdir(folder_path):
-        status_path = os.path.join(folder_path, status)
-
+    for status in os.listdir(data_path):
+        status_path = os.path.join(data_path, status)
+        
+        nb_patients_status_train = DATA_PARTITION["Train"][status]
+        nb_patients_status_dev = DATA_PARTITION["Dev"][status]
+        nb_patients_status = len(os.listdir(status_path)) # Total
+        assert nb_patients_status == nb_patients_status_train + nb_patients_status_dev, \
+            f"Number of patients for status {status} is not consistent: {nb_patients_status} != {nb_patients_status_train} + {nb_patients_status_dev} \
+            \n Check the DATA_PARTITION dictionary in constants.py and the number of patients in the folder {status_path}."
+            
+        nb_patients_loaded = 0
+        
         for patient in os.listdir(status_path):
             patient_path = os.path.join(status_path, patient)
             
-            # To go from "Cancer", "HSIL", "LSIL", "Normal" to "Positive" or "Negative"
+            # To go from "Cancer", "HSIL", "LSIL" or "Normal" to "Positive" or "Negative"
             simplified_status = simplify_status(status)
                         
             status_int = STATUS.index(simplified_status)
+            
+            if nb_patients_loaded < nb_patients_status_train:
+                # Add to train_data
+                data = train_data
+            elif nb_patients_loaded < nb_patients_status_train + nb_patients_status_dev:
+                # Add to dev_data
+                data = dev_data
+            # No else case, as the number of patients is checked above
+                
             data[patient] = {"status":status_int}
             
             for image in os.listdir(patient_path):
@@ -93,7 +113,9 @@ def load_data(folder_path):
                 image_data = cv.imread(image_path)
                 data[patient].update({image:image_data})
                 
-    return data
+            nb_patients_loaded += 1
+            
+    return train_data, dev_data
 
 
 def simplify_status(status):
@@ -660,10 +682,9 @@ def write_predictions_csv(targets, all_epoch_preds, all_epoch_accuracy, all_epoc
 if __name__ == "__main__":
     
     # Load datasets
-    train_data = load_data(TRAINPATH)
-    print(f"Loaded {len(train_data)} items from {TRAINPATH}.")
-    dev_data = load_data(DEVPATH)
-    print(f"Loaded {len(dev_data)} items from {DEVPATH}.")
+    train_data, dev_data = load_data(PATH2D)
+    print(f"Loaded {len(train_data)} patients from {PATH2D} into the Train dataset.")
+    print(f"Loaded {len(dev_data)} patients from {PATH2D} into the Dev dataset.")
     n_classes = len(STATUS) 
     
     # Extract images and labels

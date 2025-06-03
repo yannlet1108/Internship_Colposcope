@@ -15,13 +15,16 @@ sys.path.append("../..")  # Add path to the private_constants.py file
 from private_constants import dataset_location
 
 # Path
-PATH = dataset_location + "/Colpo Dataset AI" # Dataset split into Train and Dev
+PATH = dataset_location + "/Colpo Dataset"
 
 PATH2D = PATH + "/2D"
-TRAINPATH = PATH2D + "/Train"
-DEVPATH = PATH2D + "/Dev"
 
 PATH3D = PATH + "/3D"
+
+# Dataset partitioning between Train and Dev sets
+# The numbers represent the number of patients in each category
+DATA_PARTITION = {"Train": {"Cancer":9,"HSIL":14,"LSIL":11,"Normal":20},
+                  "Dev": {"Cancer":2,"HSIL":3,"LSIL":3,"Normal":5}}
 
 # Status of the patients
 STATUS = ("Positive", "Negative")

@@ -10,6 +10,8 @@ We will work separately on the 2D and 3D data because they have very different s
 
 ## 2D
 
+### Overview
+
 The 2D data is organized in the following way :
 
 ![2D data architecture](png/2D_data_architecture.png)
@@ -18,12 +20,18 @@ Each patient has a folder named `PXXX` where XXX is the patient number. Inside e
 
 ![2D patient data](png/2D_patient_data.png)
 
+### Machine Learning Deta Partitioning
 
-In order to train a model, the dataset is split into 2 folders : `Train` and `Dev`. The `Train` folder contains contains around 80% of the patients of each class and the `Dev` folder contains the remaining 20%. The dataset is hence split this way :
+In order to train a model, the dataset needs to be split into training and validation sets. The dataset is split by patients, meaning that all images of a patient will be in the same set. This partitioning is chosen in the `DATA_PARTITION` dictionary of the `constants.py` file of each step. This dictionary contains the number of patients per status to put in each set (the first ones are in the training set, the last ones in the validation set).
+
+The chosen partitioning is the following (the closest possible to a 80/20 split) :
+
+```python
+DATA_PARTITION = {"Train": {"Cancer":9,"HSIL":14,"LSIL":11, "Normal":20},
+                  "Dev": {"Cancer":2,"HSIL":3,"LSIL":3,"Normal":5}}
+```
 
 ![2D AI partition](png/2D_AI_partition.png)
-
-Each patient folder (PXXX) remains unchanged, they were just moved.
 
 
 ## 3D 
