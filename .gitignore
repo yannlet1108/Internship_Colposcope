@@ -1,2 +1,3 @@
 __pycache__
 machine_learning/*/csv_output/
+machine_learning/*/test.py
