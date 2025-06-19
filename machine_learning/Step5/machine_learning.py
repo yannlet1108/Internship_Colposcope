@@ -158,10 +158,10 @@ def extract_images(data, contrast_mediator = "saline"):
         images: numpy array of images
     """
     if contrast_mediator == "All":
-        return [[data[patient][contrast_mediator+"."+IMAGE_EXTENSION] for contrast_mediator in CONTRAST_MEDIATORS] for patient in train_data]
+        return [[data[patient][contrast_mediator+IMAGE_EXTENSION] for contrast_mediator in CONTRAST_MEDIATORS] for patient in train_data]
     
     # If a specific contrast mediator is specified, extract only that one
-    return np.array([data[patient][contrast_mediator+"."+IMAGE_EXTENSION] for patient in data])
+    return np.array([data[patient][contrast_mediator+IMAGE_EXTENSION] for patient in data])
 
 
 def reshape_and_normalize_images(images):
