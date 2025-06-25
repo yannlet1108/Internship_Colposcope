@@ -59,7 +59,7 @@ RUN = {
     "model": "resnet18",  # "simple_cnn", "shallow_mlp", "pooled_mlp", "resnet18", "complex_cnn"
     "criterion": "weighted_CEL", # "CEL" (Cross Entropy Loss) or "weighted_CEL". IGNORED IN SANITY CHECKS (no impact)
     "optimizer": "SGD",  # "SGD" or "Adam" 
-    "data_augmentation": True,  # Only available for ResNet18
+    "data_augmentation": False,  # Only available for ResNet18
 }
 
 
@@ -148,20 +148,38 @@ def extract_labels(data):
     return np.array([data[patient]["status"] for patient in data])
 
 
-def extract_images(data, contrast_mediator = "saline"):
+def extract_images(data, contrast_mediator = "al"):
     """ Extracting the desired images from the data dictionary.
     
     Args:
         data (dictionary): data loaded with the load_data function
+        contrast_mediator (string): "a" for acetic acid, "l" for lugol, "s" for saline. Letters can be combined, e.g. "al" for acetic acid and lugol.
 
     Returns:
-        images: numpy array of images
+        images: numpy array of images of shape (N, H, W, 3 * num_contrasts)
     """
-    if contrast_mediator == "All":
-        return [[data[patient][contrast_mediator+"."+IMAGE_EXTENSION] for contrast_mediator in CONTRAST_MEDIATORS] for patient in train_data]
     
-    # If a specific contrast mediator is specified, extract only that one
-    return np.array([data[patient][contrast_mediator+"."+IMAGE_EXTENSION] for patient in data])
+    images = []
+    
+    for patient in data:
+        
+        patient_images = []
+        
+        if "a" in contrast_mediator:
+            patient_images.append(data[patient]["acetic_acid"+IMAGE_EXTENSION])
+        if "l" in contrast_mediator:
+            patient_images.append(data[patient]["lugol"+IMAGE_EXTENSION])
+        if "s" in contrast_mediator:
+            patient_images.append(data[patient]["saline"+IMAGE_EXTENSION])
+            
+        if not patient_images:
+            raise ValueError(f"No images found for patient {patient} with contrast mediator '{contrast_mediator}'.")
+        
+        # Stack images along the channel axis (last axis)
+        stacked = np.concatenate(patient_images, axis=-1)  # shape: (H, W, 3*num_contrasts)
+        images.append(stacked)
+        
+    return np.array(images)
 
 
 def reshape_and_normalize_images(images):
@@ -184,11 +202,12 @@ def reshape_and_normalize_images(images):
 
 def preprocess_train_for_resnet(images):
     """
-    Resize and normalize train images for ResNet.
+    Resize and normalize train images for ResNet (Data augmentation).
+    
     Args:
-        images (torch.Tensor): shape (N, 3, H, W)
+        images (torch.Tensor): shape (N, c, H, W)
     Returns:
-        torch.Tensor: shape (N, 3, 224, 224)
+        torch.Tensor: shape (N, c, 224, 224)
     """
     preprocess = transforms.Compose([
         transforms.ToPILImage(),
@@ -199,17 +218,30 @@ def preprocess_train_for_resnet(images):
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
-    processed = [preprocess(img.permute(1,2,0).numpy()) for img in images]
+    
+    processed = []
+    for img in images:
+        nb_channels = img.shape[0]
+        assert nb_channels % 3 == 0, "Number of channels must be a multiple of 3"
+        img_parts = []
+        for i in range(0, nb_channels, 3):
+            part = img[i:i+3, :, :].permute(1,2,0).numpy()  # (H,W,3)
+            part = preprocess(part)  # (3,224,224)
+            img_parts.append(part)
+        img_cat = torch.cat(img_parts, dim=0)  # (3*num_parts,224,224)
+        processed.append(img_cat)
+    
     return torch.stack(processed)
 
 
 def preprocess_test_for_resnet(images):
     """
     Resize and normalize test images for ResNet.
+    
     Args:
-        images (torch.Tensor): shape (N, 3, H, W)
+        images (torch.Tensor): shape (N, C, H, W)
     Returns:
-        torch.Tensor: shape (N, 3, 224, 224)
+        torch.Tensor: shape (N, C, 224, 224)
     """
     preprocess = transforms.Compose([
         transforms.ToPILImage(),
@@ -217,7 +249,19 @@ def preprocess_test_for_resnet(images):
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
-    processed = [preprocess(img.permute(1,2,0).numpy()) for img in images]
+    
+    processed = []
+    for img in images:
+        nb_channels = img.shape[0]
+        assert nb_channels % 3 == 0, "Number of channels must be a multiple of 3"
+        img_parts = []
+        for i in range(0, nb_channels, 3):
+            part = img[i:i+3, :, :].permute(1,2,0).numpy()  # (H,W,3)
+            part = preprocess(part)  # (3,224,224)
+            img_parts.append(part)
+        img_cat = torch.cat(img_parts, dim=0)  # (3*num_parts,224,224)
+        processed.append(img_cat)
+        
     return torch.stack(processed)
 
 
@@ -449,8 +493,26 @@ def create_pooled_mlp(input_shape, num_classes):
 
 ### Pretrained models
 
-def create_resnet18(num_classes):
+def create_resnet18(num_classes, in_channels):
     model = models.resnet18(weights=models.ResNet18_Weights.DEFAULT)  # Load pretrained weights
+    
+    # Change the first conv layer if needed
+    if in_channels != 3:
+        old_conv = model.conv1
+        model.conv1 = nn.Conv2d(in_channels, old_conv.out_channels,
+                                kernel_size=old_conv.kernel_size,
+                                stride=old_conv.stride,
+                                padding=old_conv.padding,
+                                bias=old_conv.bias is not None)
+        # Copy weights for the first 3 channels, repeat or average for others
+        with torch.no_grad():
+            if in_channels > 3:
+                model.conv1.weight[:, :3, :, :] = old_conv.weight
+                for i in range(3, in_channels):
+                    model.conv1.weight[:, i:i+1, :, :] = old_conv.weight[:, :1, :, :]
+            else:
+                model.conv1.weight[:, :in_channels, :, :] = old_conv.weight[:, :in_channels, :, :]
+    
     model.fc = nn.Linear(model.fc.in_features, num_classes)  # Replace the final layer
     
     # Freeze all layers except the final fully connected layer
@@ -734,7 +796,7 @@ if __name__ == "__main__":
         model = create_pooled_mlp(input_shape=data_shape, num_classes=n_classes)
     ## Pretrained models
     elif RUN["model"] == "resnet18":
-        model = create_resnet18(num_classes=n_classes)
+        model = create_resnet18(num_classes=n_classes, in_channels=data_shape[0])
     else:
         raise ValueError(f"Unknown model type: {RUN['model']}. Choose from 'cnn', 'shallow_mlp', 'pooled_mlp', or 'resnet18'.")
     
