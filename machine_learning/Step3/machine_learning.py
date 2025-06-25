@@ -50,7 +50,7 @@ if DEVICE == "cuda":
 
 # Hyperparameters
 BATCH_SIZE = 4
-NUM_EPOCHS = 100
+NUM_EPOCHS = 10
 LEARNING_RATE = 0.0005
 
 # Easy run
@@ -723,7 +723,7 @@ def write_predictions_csv(targets, all_epoch_preds, all_epoch_accuracy, all_epoc
     filename = os.path.join(CSV_FOLDER, filename)
 
     with open(filename, "w", newline="") as csvfile:
-        writer = csv.writer(csvfile)
+        writer = csv.writer(csvfile, delimiter='\t')
         # Write header
         header = ["target"] + [f"e_{i+1}" for i in range(num_epochs)]
         writer.writerow(header)
@@ -733,9 +733,9 @@ def write_predictions_csv(targets, all_epoch_preds, all_epoch_accuracy, all_epoc
             writer.writerow(row)
         
         # Write accuracy and UAR for each epoch
-        accuracy = ["accuracy"] + [f"{acc:.3f}" for acc in all_epoch_accuracy]
+        accuracy = ["accuracy"] + [f"{acc:.3f}".replace('.', ',') for acc in all_epoch_accuracy]
         writer.writerow(accuracy)
-        uar = ["UAR"] + [f"{uar:.3f}" for uar in all_epoch_uar]
+        uar = ["UAR     "] + [f"{uar:.3f}".replace('.', ',') for uar in all_epoch_uar]
         writer.writerow(uar)
 
 
