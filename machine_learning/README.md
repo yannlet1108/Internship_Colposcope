@@ -18,4 +18,15 @@ The dataset used in this project is described in the [dataset_architecture](../d
 
 ## How to run the code
 
-To do.
+You can run the code in each step by executing the `machine_learning.py` file in the corresponding step folder. 
+
+For example, to run Step 1, you can execute the following command:
+
+```bash
+cd Step1
+python3 machine_learning.py
+```
+
+The code will automatically load the dataset from the path specified in the `private_constants.py` file. Make sure to set the correct path to the dataset before running the code.
+
+The results will be saved in the `csv_output` folder in the corresponding step folder (created automatically if necessary). 
