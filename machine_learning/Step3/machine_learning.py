@@ -22,6 +22,7 @@ import torch.nn as nn
 import torch.utils.data as data
 import torch.optim as optim
 from torchvision import models, transforms
+from torchvision.models import efficientnet_b0, efficientnet_b1, efficientnet_b2, efficientnet_b3, efficientnet_b4, efficientnet_b5, efficientnet_b6, efficientnet_b7, EfficientNet_B0_Weights, EfficientNet_B1_Weights, EfficientNet_B2_Weights, EfficientNet_B3_Weights, EfficientNet_B4_Weights, EfficientNet_B5_Weights, EfficientNet_B6_Weights, EfficientNet_B7_Weights
 
 import random
 
@@ -32,7 +33,7 @@ import csv
 
 ###############     CONSTANTS     ###############
 
-from constants import PATH2D, DATA_PARTITION, STATUS, CONTRAST_MEDIATORS, IMAGE_EXTENSION, CSV_FOLDER
+from constants import PATH2D, DATA_PARTITION, STATUS, IMAGE_EXTENSION, CSV_FOLDER
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -50,16 +51,16 @@ if DEVICE == "cuda":
 
 # Hyperparameters
 BATCH_SIZE = 4
-NUM_EPOCHS = 10
-LEARNING_RATE = 0.0005
+NUM_EPOCHS = 2
+LEARNING_RATE = 0.005
 
 # Easy run
 RUN = {
-    "mode": "series",  # "sanity" for sanity check, "classic" for classic evaluation, "series" for a series of runs with different hyperparameters
-    "model": "resnet18",  # "simple_cnn", "shallow_mlp", "pooled_mlp", "resnet18", "complex_cnn"
+    "mode": "classic",  # "sanity" for sanity check, "classic" for classic evaluation, "series" for a series of runs with different hyperparameters
+    "model": "efficientnet_b7",  # "simple_cnn", "shallow_mlp", "pooled_mlp", "resnet18", "complex_cnn", "efficientnet_b[0-7]"
     "criterion": "weighted_CEL", # "CEL" (Cross Entropy Loss) or "weighted_CEL". IGNORED IN SANITY CHECKS (no impact)
     "optimizer": "SGD",  # "SGD" or "Adam" 
-    "data_augmentation": False,  # Only available for ResNet18
+    "data_augmentation": True,  # Only available for ResNet18
 }
 
 
@@ -157,6 +158,7 @@ def extract_images(data, contrast_mediator = "al"):
 
     Returns:
         images: numpy array of images of shape (N, H, W, 3 * num_contrasts)
+        N = number of patients, H = height, W = width, 3 = RGB channels * num_contrasts = number of contrast mediators used
     """
     
     images = []
@@ -200,25 +202,32 @@ def reshape_and_normalize_images(images):
     return reshaped_images
 
 
-def preprocess_train_for_resnet(images):
+def preprocess_for_resnet(images, augment):
     """
-    Resize and normalize train images for ResNet (Data augmentation).
-    
+    Resize and normalize images for ResNet.
     Args:
         images (torch.Tensor): shape (N, c, H, W)
+        augment (bool): Whether to apply data augmentation
     Returns:
         torch.Tensor: shape (N, c, 224, 224)
     """
-    preprocess = transforms.Compose([
-        transforms.ToPILImage(),
-        transforms.Resize((224, 224)),
-        transforms.RandomHorizontalFlip(),
-        transforms.RandomRotation(180),
-        transforms.RandomVerticalFlip(),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-    ])
-    
+    if augment:
+        preprocess = transforms.Compose([
+            transforms.ToPILImage(),
+            transforms.Resize((224, 224)),
+            transforms.RandomHorizontalFlip(),
+            transforms.RandomRotation(180),
+            transforms.RandomVerticalFlip(),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+        ])
+    else:
+        preprocess = transforms.Compose([
+            transforms.ToPILImage(),
+            transforms.Resize((224, 224)),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+        ])
     processed = []
     for img in images:
         nb_channels = img.shape[0]
@@ -230,26 +239,57 @@ def preprocess_train_for_resnet(images):
             img_parts.append(part)
         img_cat = torch.cat(img_parts, dim=0)  # (3*num_parts,224,224)
         processed.append(img_cat)
-    
+        
     return torch.stack(processed)
 
 
-def preprocess_test_for_resnet(images):
+def get_efficientnet_input_size(version):
     """
-    Resize and normalize test images for ResNet.
-    
+    Returns the expected input size (height, width) for a given EfficientNet version.
+    """
+    size_map = {
+        "b0": (224, 224),
+        "b1": (240, 240),
+        "b2": (260, 260),
+        "b3": (300, 300),
+        "b4": (380, 380),
+        "b5": (456, 456),
+        "b6": (528, 528),
+        "b7": (600, 600),
+    }
+    if version not in size_map:
+        raise ValueError(f"EfficientNet version '{version}' not supported. Choose from b0-b7.")
+    return size_map[version]
+
+
+def preprocess_for_efficientnet(version, images, augment=False):
+    """
+    Resize and normalize images for EfficientNet.
     Args:
-        images (torch.Tensor): shape (N, C, H, W)
+        images (torch.Tensor): shape (N, c, H, W)
+        version (str): EfficientNet version (e.g., 'b0', 'b1', ..., 'b7')
+        augment (bool): Whether to apply data augmentation
     Returns:
-        torch.Tensor: shape (N, C, 224, 224)
+        torch.Tensor: shape (N, c, H_new, W_new)
     """
-    preprocess = transforms.Compose([
-        transforms.ToPILImage(),
-        transforms.Resize((224, 224)),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-    ])
-    
+    size = get_efficientnet_input_size(version)
+    if augment:
+        preprocess = transforms.Compose([
+            transforms.ToPILImage(),
+            transforms.Resize(size),
+            transforms.RandomHorizontalFlip(),
+            transforms.RandomRotation(180),
+            transforms.RandomVerticalFlip(),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+        ])
+    else:
+        preprocess = transforms.Compose([
+            transforms.ToPILImage(),
+            transforms.Resize(size),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+        ])
     processed = []
     for img in images:
         nb_channels = img.shape[0]
@@ -257,9 +297,9 @@ def preprocess_test_for_resnet(images):
         img_parts = []
         for i in range(0, nb_channels, 3):
             part = img[i:i+3, :, :].permute(1,2,0).numpy()  # (H,W,3)
-            part = preprocess(part)  # (3,224,224)
+            part = preprocess(part)  # (3,H_new,W_new)
             img_parts.append(part)
-        img_cat = torch.cat(img_parts, dim=0)  # (3*num_parts,224,224)
+        img_cat = torch.cat(img_parts, dim=0)  # (3*num_parts,H_new,W_new)
         processed.append(img_cat)
         
     return torch.stack(processed)
@@ -523,6 +563,64 @@ def create_resnet18(num_classes, in_channels):
         
     model = model.to(DEVICE)
     return model
+
+
+def create_efficientnet(version, num_classes, in_channels):
+    """
+    Create an EfficientNet model with the specified version, number of classes, and input channels.
+    
+    Args:
+        version (str): EfficientNet version (e.g., 'b0', 'b1', ..., 'b7')
+        num_classes (int): Number of output classes
+        in_channels (int): Number of input channels (e.g., 3 for RGB, 6 for 2 contrasts)
+    
+    Returns:
+        model: The EfficientNet model
+    """
+    # Map version to model and weights
+    model_map = {
+        "b0": (efficientnet_b0, EfficientNet_B0_Weights.DEFAULT),
+        "b1": (efficientnet_b1, EfficientNet_B1_Weights.DEFAULT),
+        "b2": (efficientnet_b2, EfficientNet_B2_Weights.DEFAULT),
+        "b3": (efficientnet_b3, EfficientNet_B3_Weights.DEFAULT),
+        "b4": (efficientnet_b4, EfficientNet_B4_Weights.DEFAULT),
+        "b5": (efficientnet_b5, EfficientNet_B5_Weights.DEFAULT),
+        "b6": (efficientnet_b6, EfficientNet_B6_Weights.DEFAULT),
+        "b7": (efficientnet_b7, EfficientNet_B7_Weights.DEFAULT),
+    }
+    if version not in model_map:
+        raise ValueError(f"EfficientNet version '{version}' not supported. Choose from b0-b7.")
+    model_fn, weights = model_map[version]
+    model = model_fn(weights=weights)
+    # Change input channels if needed
+    if in_channels != 3:
+        old_conv = model.features[0][0]
+        model.features[0][0] = nn.Conv2d(
+            in_channels, old_conv.out_channels,
+            kernel_size=old_conv.kernel_size,
+            stride=old_conv.stride,
+            padding=old_conv.padding,
+            bias=old_conv.bias is not None
+        )
+        with torch.no_grad():
+            if in_channels > 3:
+                model.features[0][0].weight[:, :3, :, :] = old_conv.weight
+                for i in range(3, in_channels):
+                    model.features[0][0].weight[:, i:i+1, :, :] = old_conv.weight[:, :1, :, :]
+            else:
+                model.features[0][0].weight[:, :in_channels, :, :] = old_conv.weight[:, :in_channels, :, :]
+    # Replace classifier
+    in_features = model.classifier[1].in_features
+    model.classifier[1] = nn.Linear(in_features, num_classes)
+    
+    # Freeze all except classifier
+    for param in model.parameters():
+        param.requires_grad = False
+    for param in model.classifier.parameters():
+        param.requires_grad = True
+    model = model.to(DEVICE)
+    
+    return model
     
 
 ###############     TRAINING AND TESTING     ###############
@@ -767,17 +865,17 @@ if __name__ == "__main__":
     
     # Preprocess for ResNet (resize, normalization)
     if RUN["model"] == "resnet18":
-        if RUN["data_augmentation"]:
-            # Data augmentation
-            feats_train_data = preprocess_train_for_resnet(feats_train_data) 
-        else:
-            # No data augmentation, just resize and normalize
-            feats_train_data = preprocess_test_for_resnet(feats_train_data)
-        # Resize and normalize dev data
-        feats_dev_data = preprocess_test_for_resnet(feats_dev_data)
+        feats_train_data = preprocess_for_resnet(feats_train_data, augment=RUN["data_augmentation"])
+        feats_dev_data = preprocess_for_resnet(feats_dev_data, augment=False)
+        
+    # Preprocess for EfficientNet (resize, normalization)
+    elif RUN["model"].startswith("efficientnet_b"):
+        version = RUN["model"].split("_")[1]
+        feats_train_data = preprocess_for_efficientnet(version, feats_train_data, augment=RUN["data_augmentation"])
+        feats_dev_data = preprocess_for_efficientnet(version, feats_dev_data, augment=False)
     
     data_shape = feats_train_data.shape[1:] # (channels, height, width)
-    # The original images are [3, 600, 800], resized to [3, 224, 224] for ResNet18 
+    # The original images are [3, 600, 800], resized for ResNet18 and the EfficientNet family
     
     # Combine features and labels into a single dataset
     train_dataset = [[feats_train_data[i], labels_train_data[i]] for i in range(len(feats_train_data))]
@@ -797,6 +895,9 @@ if __name__ == "__main__":
     ## Pretrained models
     elif RUN["model"] == "resnet18":
         model = create_resnet18(num_classes=n_classes, in_channels=data_shape[0])
+    elif RUN["model"].startswith("efficientnet_b"):
+        version = RUN["model"].split("_")[1]
+        model = create_efficientnet(version=version, num_classes=n_classes, in_channels=data_shape[0])
     else:
         raise ValueError(f"Unknown model type: {RUN['model']}. Choose from 'cnn', 'shallow_mlp', 'pooled_mlp', or 'resnet18'.")
     
