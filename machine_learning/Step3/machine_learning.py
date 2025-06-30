@@ -51,16 +51,16 @@ if DEVICE == "cuda":
 
 # Hyperparameters
 BATCH_SIZE = 4
-NUM_EPOCHS = 2
+NUM_EPOCHS = 100
 LEARNING_RATE = 0.005
 
 # Easy run
 RUN = {
-    "mode": "classic",  # "sanity" for sanity check, "classic" for classic evaluation, "series" for a series of runs with different hyperparameters
-    "model": "efficientnet_b7",  # "simple_cnn", "shallow_mlp", "pooled_mlp", "resnet18", "complex_cnn", "efficientnet_b[0-7]"
+    "mode": "series",  # "sanity" for sanity check, "classic" for classic evaluation, "series" for a series of runs with different hyperparameters
+    "model": "efficientnet_b0",  # "simple_cnn", "shallow_mlp", "pooled_mlp", "resnet18", "complex_cnn", "efficientnet_b[0-7]"
     "criterion": "weighted_CEL", # "CEL" (Cross Entropy Loss) or "weighted_CEL". IGNORED IN SANITY CHECKS (no impact)
     "optimizer": "SGD",  # "SGD" or "Adam" 
-    "data_augmentation": True,  # Only available for ResNet18
+    "data_augmentation": False,  # Only available for the pretrained models (ResNet and EfficientNet)
 }
 
 
