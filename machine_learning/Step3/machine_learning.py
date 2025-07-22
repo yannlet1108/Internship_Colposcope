@@ -3,7 +3,7 @@
 
 #************************************
 # Author : Yann Letourneur
-# Date : May 25th 2025
+# Date : July 1st 2025
 # Description : Machine learning pipeline for the 2D dataset.
 # Usage : python3 machine_learning.py
 #************************************
@@ -23,6 +23,7 @@ import torch.utils.data as data
 import torch.optim as optim
 from torchvision import models, transforms
 from torchvision.models import efficientnet_b0, efficientnet_b1, efficientnet_b2, efficientnet_b3, efficientnet_b4, efficientnet_b5, efficientnet_b6, efficientnet_b7, EfficientNet_B0_Weights, EfficientNet_B1_Weights, EfficientNet_B2_Weights, EfficientNet_B3_Weights, EfficientNet_B4_Weights, EfficientNet_B5_Weights, EfficientNet_B6_Weights, EfficientNet_B7_Weights
+from torchvision.models import efficientnet_v2_s, efficientnet_v2_m, efficientnet_v2_l, EfficientNet_V2_S_Weights, EfficientNet_V2_M_Weights, EfficientNet_V2_L_Weights
 
 import random
 
@@ -51,13 +52,13 @@ if DEVICE == "cuda":
 
 # Hyperparameters
 BATCH_SIZE = 4
-NUM_EPOCHS = 100
+NUM_EPOCHS = 40
 LEARNING_RATE = 0.005
 
 # Easy run
 RUN = {
     "mode": "series",  # "sanity" for sanity check, "classic" for classic evaluation, "series" for a series of runs with different hyperparameters
-    "model": "efficientnet_b0",  # "simple_cnn", "shallow_mlp", "pooled_mlp", "resnet18", "complex_cnn", "efficientnet_b[0-7]"
+    "model": "efficientnet_v2_l",  # "simple_cnn", "shallow_mlp", "pooled_mlp", "resnet18", "complex_cnn", "efficientnet_b[0-7]", "efficientnet_v2_[s/m/l]"
     "criterion": "weighted_CEL", # "CEL" (Cross Entropy Loss) or "weighted_CEL". IGNORED IN SANITY CHECKS (no impact)
     "optimizer": "SGD",  # "SGD" or "Adam" 
     "data_augmentation": False,  # Only available for the pretrained models (ResNet and EfficientNet)
@@ -202,7 +203,7 @@ def reshape_and_normalize_images(images):
     return reshaped_images
 
 
-def preprocess_for_resnet(images, augment):
+def preprocess_for_resnet(images, augment=False):
     """
     Resize and normalize images for ResNet.
     Args:
@@ -256,6 +257,9 @@ def get_efficientnet_input_size(version):
         "b5": (456, 456),
         "b6": (528, 528),
         "b7": (600, 600),
+        "v2_s": (384, 384),
+        "v2_m": (480, 480),
+        "v2_l": (480, 480),
     }
     if version not in size_map:
         raise ValueError(f"EfficientNet version '{version}' not supported. Choose from b0-b7.")
@@ -587,9 +591,12 @@ def create_efficientnet(version, num_classes, in_channels):
         "b5": (efficientnet_b5, EfficientNet_B5_Weights.DEFAULT),
         "b6": (efficientnet_b6, EfficientNet_B6_Weights.DEFAULT),
         "b7": (efficientnet_b7, EfficientNet_B7_Weights.DEFAULT),
+        "v2_s": (efficientnet_v2_s, EfficientNet_V2_S_Weights.DEFAULT),
+        "v2_m": (efficientnet_v2_m, EfficientNet_V2_M_Weights.DEFAULT),
+        "v2_l": (efficientnet_v2_l, EfficientNet_V2_L_Weights.DEFAULT),
     }
     if version not in model_map:
-        raise ValueError(f"EfficientNet version '{version}' not supported. Choose from b0-b7.")
+        raise ValueError(f"EfficientNet version '{version}' not supported. Choose from b0-b7 or v2_[s/m/l].")
     model_fn, weights = model_map[version]
     model = model_fn(weights=weights)
     # Change input channels if needed
@@ -869,8 +876,8 @@ if __name__ == "__main__":
         feats_dev_data = preprocess_for_resnet(feats_dev_data, augment=False)
         
     # Preprocess for EfficientNet (resize, normalization)
-    elif RUN["model"].startswith("efficientnet_b"):
-        version = RUN["model"].split("_")[1]
+    elif RUN["model"].startswith("efficientnet_"):
+        version = RUN["model"].split("_", 1)[1]
         feats_train_data = preprocess_for_efficientnet(version, feats_train_data, augment=RUN["data_augmentation"])
         feats_dev_data = preprocess_for_efficientnet(version, feats_dev_data, augment=False)
     
@@ -895,8 +902,8 @@ if __name__ == "__main__":
     ## Pretrained models
     elif RUN["model"] == "resnet18":
         model = create_resnet18(num_classes=n_classes, in_channels=data_shape[0])
-    elif RUN["model"].startswith("efficientnet_b"):
-        version = RUN["model"].split("_")[1]
+    elif RUN["model"].startswith("efficientnet_"):
+        version = RUN["model"].split("_", 1)[1]
         model = create_efficientnet(version=version, num_classes=n_classes, in_channels=data_shape[0])
     else:
         raise ValueError(f"Unknown model type: {RUN['model']}. Choose from 'cnn', 'shallow_mlp', 'pooled_mlp', or 'resnet18'.")
