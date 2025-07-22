@@ -31,11 +31,25 @@ Then, you can run the code in each step by executing the `machine_learning.py` f
 
 ## Libraries
 
-You need to install the following libraries to run the code:
+You need to install the following libraries to run the code.
 
+### Option 1: Install from requirements.txt (recommended)
+```bash
+pip3 install -r requirements.txt
+```
+
+### Option 2: Install individually
 ```bash
 pip3 install opencv-python
 pip3 install numpy
 pip3 install scikit-learn
 pip3 install torch torchvision
+pip3 install tqdm
 ```
+
+**Required packages:**
+- `opencv-python`: For image processing
+- `numpy`: For numerical computations
+- `scikit-learn`: For machine learning utilities and metrics
+- `torch` + `torchvision`: PyTorch deep learning framework
+- `tqdm`: For progress bars during training
