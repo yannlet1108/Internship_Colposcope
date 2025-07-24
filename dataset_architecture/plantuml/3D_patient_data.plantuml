@@ -1,0 +1,19 @@
+@startuml 3D_patient_data
+
+folder PXXX1 as "PXXX in Normal or LSIL folder" {
+    folder Saline {
+        collections VideosSaline1 as "5 videos"
+    }    
+    folder Lugol {
+        collections VideosLugol1 as "5 videos"
+    }
+    folder Acetic_Acid{
+        collections VideosAcetic1 as "5 videos"
+    }
+}
+
+folder PXXX2 as "PXXX in HSIL or Cancer folder" {
+    collections Tout as "15 videos"
+}
+
+@enduml

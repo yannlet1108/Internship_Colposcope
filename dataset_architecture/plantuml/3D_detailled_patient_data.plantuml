@@ -1,0 +1,50 @@
+@startuml 3D_detailled_patient_data
+
+folder PXXX1 as "PXXX in Normal or LSIL folder" {
+    folder Lugol {
+        file 0000_Lugol as "0000"
+        file circle_Lugol as "circle"
+        file dollyZoomIn_Lugol as "dolly-zoom-in"
+        file swing_Lugol as "swing"
+        file ZoomIn_Lugol as "zoom-in"
+    }
+    folder Acetic_Acid {
+        file 0000_Acetic as "0000"
+        file circle_Acetic as "circle"
+        file dollyZoomIn_Acetic as "dolly-zoom-in"
+        file swing_Acetic as "swing"
+        file ZoomIn_Acetic as "zoom-in"
+    }
+        folder Saline {
+        file 0000_Saline as "0000"
+        file circle_Saline as "circle"
+        file dollyZoomIn_Saline as "dolly-zoom-in"
+        file swing_Saline as "swing"
+        file ZoomIn_Saline as "zoom-in"
+    }
+}
+
+folder PXXX2 as "PXXX in HSIL or Cancer folder" {
+    file 0000_1 as "0000"
+    file 0000_2 as "0000 (2)"
+    file 0000_3 as "0000 (3)"
+
+    file circle_1 as "circle"
+    file circle_2 as "circle (2)"
+    file circle_3 as "circle (3)"
+
+    file dollyZoomIn_1 as "dolly-zoom-in"
+    file dollyZoomIn_2 as "dolly-zoom-in (2)"
+    file dollyZoomIn_3 as "dolly-zoom-in (3)"
+
+    file swing_1 as "swing"
+    file swing_2 as "swing (2)"
+    file swing_3 as "swing (3)"
+
+    file ZoomIn_1 as "zoom-in"
+    file ZoomIn_2 as "zoom-in (2)"
+    file ZoomIn_3 as "zoom-in (3)"
+
+}
+
+@enduml

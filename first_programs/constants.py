@@ -28,3 +28,5 @@ CONTRAST_MEDIATORS = ("acetic_acid", "lugol", "saline")
 # Image extension for 2D images
 IMAGE_EXTENSION = "jpg"
 
+# Video extension
+VIDEO_EXTENSION = ".mp4"

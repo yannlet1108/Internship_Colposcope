@@ -1,0 +1,18 @@
+@startuml 3D_data_architecture
+
+folder 3D {
+    folder Normal {
+        collections 25patients as "25 patients"
+    }
+    folder LSIL {
+        collections 14patients as "14 patients"
+    }
+    folder HSIL {
+        collections 17patients as "17 patients"
+    }
+    folder Cancer {
+        collections 11patients as "11 patients"
+    }
+}
+
+@enduml
